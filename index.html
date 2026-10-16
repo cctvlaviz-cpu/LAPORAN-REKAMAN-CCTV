@@ -46,9 +46,9 @@
         <div class="top-panel">
             <div class="history-box">
                 <label for="historyDropdown"><strong>Periode History:</strong></label>
-                <select id="historyDropdown" onchange="loadCCTVData()">
-                    <option value="Oktober - Minggu 2" selected>Oktober - Minggu 2</option>
-                    <option value="Oktober - Minggu 1">Oktober - Minggu 1</option>
+                <!-- Dropdown ini akan terisi otomatis dari spreadsheet -->
+                <select id="historyDropdown" onchange="renderTable()">
+                    <option value="">Semua Periode / Terbaru</option>
                 </select>
             </div>
         </div>
@@ -87,12 +87,11 @@
     </div>
 
     <div class="footer-note">
-        Laviz Mansion CCTV Monitoring System • Terhubung langsung dengan Cloud Database.
+        Laviz Mansion CCTV Monitoring System • Dropdown & Data Otomatis dari Cloud Database.
     </div>
 </div>
 
 <script>
-    // URL API SheetDB Anda
     const API_URL = "https://sheetdb.io/api/v1/fkid0o41oso3m";
     
     let currentDay = "SENIN";
@@ -102,9 +101,36 @@
         try {
             const response = await fetch(API_URL);
             allData = await response.json();
+            
+            // Generate Dropdown History secara Otomatis dari Kolom PERIODE_MINGGU di Spreadsheet
+            populateHistoryDropdown();
+            
             renderTable();
         } catch (error) {
-            document.getElementById('table-body').innerHTML = `<tr><td colspan="8" class="loading" style="color:red;">Gagal memuat data dari Spreadsheet. Pastikan koneksi internet stabil.</td></tr>`;
+            document.getElementById('table-body').innerHTML = `<tr><td colspan="8" class="loading" style="color:red;">Gagal memuat data dari Spreadsheet. Periksa koneksi internet Anda.</td></tr>`;
+        }
+    }
+
+    function populateHistoryDropdown() {
+        const dropdown = document.getElementById('historyDropdown');
+        let periods = new Set();
+
+        allData.forEach(item => {
+            let p = item.PERIODE_MINGGU || item['PERIODE MINGGU'] || "";
+            if (p.trim() !== "") {
+                periods.add(p.trim());
+            }
+        });
+
+        // Kosongkan lalu isi ulang opsi dropdown
+        dropdown.innerHTML = `<option value="">-- Pilih Periode History --</option>`;
+        periods.forEach(period => {
+            dropdown.innerHTML += `<option value="${period}">${period}</option>`;
+        });
+
+        // Jika ada data, pilih periode pertama secara otomatis
+        if (dropdown.options.length > 1) {
+            dropdown.selectedIndex = 1;
         }
     }
 
@@ -119,19 +145,19 @@
         const selectedPeriod = document.getElementById('historyDropdown').value;
         const tbody = document.getElementById('table-body');
         
-        // Filter data berdasarkan hari dan periode minggu
         const filtered = allData.filter(item => {
             const jadwal = (item.JADWAL_PENGECEKAN || item['JADWAL PENGECEKAN'] || "").toUpperCase();
             const periode = (item.PERIODE_MINGGU || item['PERIODE MINGGU'] || "").trim();
             
             const matchDay = jadwal.includes(currentDay);
-            const matchPeriod = periode === "" || periode === selectedPeriod;
+            // Jika dropdown history kosong, tampilkan semua. Jika dipilih, cocokkan periodenya.
+            const matchPeriod = selectedPeriod === "" || periode === selectedPeriod;
             
             return matchDay && matchPeriod;
         });
 
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="loading">Tidak ada data untuk hari ${currentDay} pada periode ${selectedPeriod}.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="loading">Tidak ada data untuk hari ${currentDay}. (Pastikan kolom Jadwal Pengecekan berisi hari tersebut atau Periode History sudah dipilih).</td></tr>`;
             return;
         }
 
@@ -161,7 +187,7 @@
         tbody.innerHTML = html;
     }
 
-    // Panggil data pertama kali saat halaman dimuat
+    // Load data saat halaman dibuka
     loadCCTVData();
 </script>
 
