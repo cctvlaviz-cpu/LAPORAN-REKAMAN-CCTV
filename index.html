@@ -46,9 +46,8 @@
         <div class="top-panel">
             <div class="history-box">
                 <label for="historyDropdown"><strong>Periode History:</strong></label>
-                <!-- Dropdown ini akan terisi otomatis dari spreadsheet -->
                 <select id="historyDropdown" onchange="renderTable()">
-                    <option value="">Semua Periode / Terbaru</option>
+                    <option value="">Semua Periode</option>
                 </select>
             </div>
         </div>
@@ -81,13 +80,13 @@
                 </tr>
             </thead>
             <tbody id="table-body">
-                <tr><td colspan="8" class="loading">Memuat data dari Google Spreadsheet...</td></tr>
+                <tr><td colspan="8" class="loading">Memuat seluruh data CCTV dari Cloud Spreadsheet...</td></tr>
             </tbody>
         </table>
     </div>
 
     <div class="footer-note">
-        Laviz Mansion CCTV Monitoring System • Dropdown & Data Otomatis dari Cloud Database.
+        Laviz Mansion CCTV Monitoring System • Sinkronisasi Otomatis Cloud Database.
     </div>
 </div>
 
@@ -102,9 +101,14 @@
             const response = await fetch(API_URL);
             allData = await response.json();
             
-            // Generate Dropdown History secara Otomatis dari Kolom PERIODE_MINGGU di Spreadsheet
+            // Bersihkan data dari baris kosong atau header teks judul jika ada
+            allData = allData.filter(item => {
+                let no = item.NO || item.no || "";
+                let lokasi = item.LANTAI || item.lantai || item['DETAIL LOKASI'] || "";
+                return no !== "" && lokasi !== "";
+            });
+
             populateHistoryDropdown();
-            
             renderTable();
         } catch (error) {
             document.getElementById('table-body').innerHTML = `<tr><td colspan="8" class="loading" style="color:red;">Gagal memuat data dari Spreadsheet. Periksa koneksi internet Anda.</td></tr>`;
@@ -122,22 +126,16 @@
             }
         });
 
-        // Kosongkan lalu isi ulang opsi dropdown
-        dropdown.innerHTML = `<option value="">-- Pilih Periode History --</option>`;
+        dropdown.innerHTML = `<option value="">Semua Periode</option>`;
         periods.forEach(period => {
             dropdown.innerHTML += `<option value="${period}">${period}</option>`;
         });
-
-        // Jika ada data, pilih periode pertama secara otomatis
-        if (dropdown.options.length > 1) {
-            dropdown.selectedIndex = 1;
-        }
     }
 
     function switchDay(dayName, element) {
         document.querySelectorAll('.day-btn').forEach(btn => btn.classList.remove('active'));
         element.classList.add('active');
-        currentDay = dayName;
+        currentDay = dayName.toUpperCase();
         renderTable();
     }
 
@@ -146,38 +144,38 @@
         const tbody = document.getElementById('table-body');
         
         const filtered = allData.filter(item => {
-            const jadwal = (item.JADWAL_PENGECEKAN || item['JADWAL PENGECEKAN'] || "").toUpperCase();
-            const periode = (item.PERIODE_MINGGU || item['PERIODE MINGGU'] || "").trim();
+            let jadwal = (item.JADWAL_PENGECEKAN || item['JADWAL PENGECEKAN'] || "").toUpperCase();
+            let periode = (item.PERIODE_MINGGU || item['PERIODE MINGGU'] || "").trim();
             
-            const matchDay = jadwal.includes(currentDay);
-            // Jika dropdown history kosong, tampilkan semua. Jika dipilih, cocokkan periodenya.
-            const matchPeriod = selectedPeriod === "" || periode === selectedPeriod;
+            // Cek pencocokan hari (misal: "SELASA (13/10/2026)" mengandung kata "SELASA")
+            let matchDay = jadwal.includes(currentDay);
+            let matchPeriod = (selectedPeriod === "" || periode === selectedPeriod);
             
             return matchDay && matchPeriod;
         });
 
         if (filtered.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="loading">Tidak ada data untuk hari ${currentDay}. (Pastikan kolom Jadwal Pengecekan berisi hari tersebut atau Periode History sudah dipilih).</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="loading">Tidak ada data CCTV untuk hari ${currentDay}.</td></tr>`;
             return;
         }
 
         let html = "";
         filtered.forEach((row, index) => {
-            let ket = row.KETERANGAN || "-";
+            let ket = row.KETERANGAN || row.keterangan || "-";
             let upperKet = ket.toUpperCase();
             let badgeClass = (upperKet.includes("NORMAL") && !upperKet.includes("BURAM") && !upperKet.includes("NOISE")) ? "badge-normal" : "badge-kendala";
             
-            let linkVideo = row.LINK_REKAMAN || row['LINK REKAMAN'] || "";
+            let linkVideo = row.LINK_REKAMAN || row['LINK REKAMAN'] || row.link_rekaman || "";
             let videoHtml = linkVideo ? `<a href="${linkVideo}" target="_blank" class="btn-video">▶ Putar / Download</a>` : `<span class="no-video">Belum Diupload</span>`;
 
             html += `
                 <tr>
                     <td>${index + 1}</td>
-                    <td>${row.LANTAI || ""}</td>
+                    <td>${row.LANTAI || row.lantai || ""}</td>
                     <td>${row['TITIK KAMERA'] || row.TITIK_KAMERA || ""}</td>
                     <td>${row['DETAIL LOKASI'] || row.DETAIL_LOKASI || ""}</td>
                     <td>${row['JADWAL PENGECEKAN'] || row.JADWAL_PENGECEKAN || ""}</td>
-                    <td>${row.SHIFT || ""}</td>
+                    <td>${row.SHIFT || row.shift || ""}</td>
                     <td><span class="${badgeClass}">${ket}</span></td>
                     <td>${videoHtml}</td>
                 </tr>
